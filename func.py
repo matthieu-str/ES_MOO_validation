@@ -20,8 +20,23 @@ def sep_midpoints_endpoints(R_constr, R_use):
     R_use_endpoint.drop(R_use_endpoint[~(R_use_endpoint["CF unit"].str.contains("PDF.m2.yr")) & ~(R_use_endpoint["CF unit"].str.contains("DALY"))].index, inplace=True)
     return R_constr_midpoint, R_use_midpoint, R_constr_endpoint, R_use_endpoint
 
+def impact_categories(R_constr, R_use):
+    '''
+    Generating lists of midpoints and endpoints (both for HH and EQ) impact categories
+    :param R_constr:
+    :param R_use:
+    :return:
+    '''
+    R_constr_mid, R_use_mid, R_constr_end, R_use_end = sep_midpoints_endpoints(R_constr=R_constr, R_use=R_use)
+
+    midpoint_categories = list(R_use_mid["Impact category"].unique())
+    endpoint_categories_EQ = list(R_use_end[R_use_end["CF unit"] == "PDF.m2.yr"]["Impact category"].unique())
+    endpoint_categories_HH = list(R_use_end[R_use_end["CF unit"] == "DALY"]["Impact category"].unique())
+
+    return midpoint_categories, endpoint_categories_HH, endpoint_categories_EQ
+
 def impact_computation(tech, impact, conversion_factor, capacity_factor, use_value, indicator, format,
-                       R_constr_mid, R_use_mid, R_constr_end, R_use_end):
+                       R_constr, R_use):
     '''
     Compute the impact of a technology for a given impact category.
     :param tech: name of the technology
@@ -37,6 +52,8 @@ def impact_computation(tech, impact, conversion_factor, capacity_factor, use_val
     :param R_use_end:
     :return: either a text or the float of the impact computation
     '''
+
+    R_constr_mid, R_use_mid, R_constr_end, R_use_end = sep_midpoints_endpoints(R_constr=R_constr, R_use=R_use)
 
     if indicator == "aop": # Areas of protection (HH, EQ)
         # Use phase for EQ
@@ -80,9 +97,8 @@ def impact_computation(tech, impact, conversion_factor, capacity_factor, use_val
     elif format == "number":
         return use + constr
 
-def comparison(tech, conversion_factor, capacity_factor, use_value, indicator,
-               midpoint_categories, endpoint_categories_HH, endpoint_categories_EQ,
-               df_bw_mid, df_bw_end, R_constr_mid, R_use_mid, R_constr_end, R_use_end):
+def comparison(tech, conversion_factor, capacity_factor, use_value, indicator, df_bw_mid, df_bw_end,
+               R_constr, R_use):
 
     '''
 
@@ -91,13 +107,14 @@ def comparison(tech, conversion_factor, capacity_factor, use_value, indicator,
     :param capacity_factor:
     :param use_value:
     :param indicator:
-    :param midpoint_categories:
-    :param endpoint_categories_HH:
-    :param endpoint_categories_EQ:
     :param df_bw_mid:
     :param df_bw_end:
     :return:
     '''
+
+    R_constr_mid, R_use_mid, R_constr_end, R_use_end = sep_midpoints_endpoints(R_constr=R_constr, R_use=R_use)
+
+    midpoint_categories, endpoint_categories_HH, endpoint_categories_EQ = impact_categories(R_constr=R_constr, R_use=R_use)
 
     method_endpoint_EQ = "IMPACT World+ Damage 2.0 | Ecosystem quality | "
     method_endpoint_HH = "IMPACT World+ Damage 2.0 | Human health | "
@@ -117,7 +134,7 @@ def comparison(tech, conversion_factor, capacity_factor, use_value, indicator,
         for impact in endpoint_categories_HH:
             HH_brightway+=df_bw_end[f"{method_endpoint_HH}{impact}"].iloc[0]
 
-        EQ_ES_moo, HH_ES_moo = impact_computation(tech=tech, impact=None, conversion_factor=conversion_factor, capacity_factor=capacity_factor, use_value=use_value, indicator=indicator, format="number", R_constr_mid=R_constr_mid, R_use_mid=R_use_mid, R_constr_end=R_constr_end, R_use_end=R_use_end)
+        EQ_ES_moo, HH_ES_moo = impact_computation(tech=tech, impact=None, conversion_factor=conversion_factor, capacity_factor=capacity_factor, use_value=use_value, indicator=indicator, format="number", R_constr=R_constr, R_use=R_use)
 
         res = pd.DataFrame(data = [[HH_ES_moo, EQ_ES_moo], [HH_brightway, EQ_brightway]], index = ["es_moo", "brightway"], columns = ["Human health", "Ecosystem quality"])
 
@@ -125,7 +142,7 @@ def comparison(tech, conversion_factor, capacity_factor, use_value, indicator,
 
         for impact in midpoint_categories:
             brightway.append(df_bw_mid[f"{method_midpoint}{impact}"].iloc[0])
-            es_moo.append(impact_computation(tech=tech, impact=impact, conversion_factor=conversion_factor, capacity_factor=capacity_factor, use_value=use_value, indicator=indicator, format="number", R_constr_mid=R_constr_mid, R_use_mid=R_use_mid, R_constr_end=R_constr_end, R_use_end=R_use_end))
+            es_moo.append(impact_computation(tech=tech, impact=impact, conversion_factor=conversion_factor, capacity_factor=capacity_factor, use_value=use_value, indicator=indicator, format="number", R_constr=R_constr, R_use=R_use))
 
         res = pd.DataFrame(data = [es_moo, brightway], index = ["es_moo", "brightway"], columns = midpoint_categories)
 
@@ -133,11 +150,11 @@ def comparison(tech, conversion_factor, capacity_factor, use_value, indicator,
 
         for impact in endpoint_categories_HH:
             brightway.append(df_bw_end[f"{method_endpoint_HH}{impact}"].iloc[0])
-            es_moo.append(impact_computation(tech=tech, impact=impact, conversion_factor=conversion_factor, capacity_factor=capacity_factor, use_value=use_value, indicator=indicator, format="number", R_constr_mid=R_constr_mid, R_use_mid=R_use_mid, R_constr_end=R_constr_end, R_use_end=R_use_end))
+            es_moo.append(impact_computation(tech=tech, impact=impact, conversion_factor=conversion_factor, capacity_factor=capacity_factor, use_value=use_value, indicator=indicator, format="number", R_constr=R_constr, R_use=R_use))
 
         for impact in endpoint_categories_EQ:
             brightway.append(df_bw_end[f"{method_endpoint_EQ}{impact}"].iloc[0])
-            es_moo.append(impact_computation(tech=tech, impact=impact, conversion_factor=conversion_factor, capacity_factor=capacity_factor, use_value=use_value, indicator=indicator, format="number", R_constr_mid=R_constr_mid, R_use_mid=R_use_mid, R_constr_end=R_constr_end, R_use_end=R_use_end))
+            es_moo.append(impact_computation(tech=tech, impact=impact, conversion_factor=conversion_factor, capacity_factor=capacity_factor, use_value=use_value, indicator=indicator, format="number", R_constr=R_constr, R_use=R_use))
 
         res = pd.DataFrame(data = [es_moo, brightway], index = ["es_moo", "brightway"], columns = endpoint_categories_HH + endpoint_categories_EQ)
 
