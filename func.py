@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 def sep_midpoints_endpoints(R_constr, R_use):
     '''
     Separating midpoints and endpoints of the results from ecos_sep_constr_use
-    :param R_constr:
-    :param R_use:
+    :param R_constr: R matrix for construction activities
+    :param R_use: R matrix for use activities
     :return: R_constr_midpoint, R_use_midpoint, R_constr_endpoint, R_use_endpoint
     '''
     R_constr_midpoint = R_constr.copy(deep = True)
@@ -23,9 +23,9 @@ def sep_midpoints_endpoints(R_constr, R_use):
 def impact_categories(R_constr, R_use):
     '''
     Generating lists of midpoints and endpoints (both for HH and EQ) impact categories
-    :param R_constr:
-    :param R_use:
-    :return:
+    :param R_constr: R matrix for construction activities
+    :param R_use: R matrix for use activities
+    :return: midpoint_categories, endpoint_categories_HH, endpoint_categories_EQ
     '''
     R_constr_mid, R_use_mid, R_constr_end, R_use_end = sep_midpoints_endpoints(R_constr=R_constr, R_use=R_use)
 
@@ -46,10 +46,10 @@ def impact_computation(tech, impact, conversion_factor, capacity_factor, use_val
     :param use_value: amount for the use phase (construction phase is 1 unit)
     :param indicator: "midpoint", "endpoint" or "aop"
     :param format: "clean" if cleaned text "number" if float value is needed
-    :param R_constr_mid:
-    :param R_use_mid:
-    :param R_constr_end:
-    :param R_use_end:
+    :param R_constr_mid: R matrix for construction activities for midpoints only
+    :param R_use_mid: R matrix for use activities for midpoints only
+    :param R_constr_end: R matrix for construction activities for endpoints only
+    :param R_use_end: R matrix for use activities for endpoints only
     :return: either a text or the float of the impact computation
     '''
 
@@ -102,14 +102,14 @@ def comparison(tech, conversion_factor, capacity_factor, use_value, indicator, d
 
     '''
 
-    :param tech:
-    :param conversion_factor:
-    :param capacity_factor:
-    :param use_value:
-    :param indicator:
-    :param df_bw_mid:
-    :param df_bw_end:
-    :return:
+    :param tech: str, technology name
+    :param conversion_factor: float, conversion factor
+    :param capacity_factor: float, capacity factor
+    :param use_value: float, value representing the use phase (e.g., 1 GWh)
+    :param indicator: str, "midpoint", "endpoint" or "aop"
+    :param df_bw_mid: dataframe of brightway results for midpoints
+    :param df_bw_end: dataframe of brightway results for midpoints
+    :return: dataframe containing brightway results, ecos_sep_use_constr results and the delta between them
     '''
 
     R_constr_mid, R_use_mid, R_constr_end, R_use_end = sep_midpoints_endpoints(R_constr=R_constr, R_use=R_use)
@@ -164,11 +164,18 @@ def comparison(tech, conversion_factor, capacity_factor, use_value, indicator, d
 
     return res
 
-def plot_comparison(df_comparison):
+def get_df_name(df):
+    name =[x for x in globals() if globals()[x] is df][0]
+    return name
+
+def plot_comparison(df_comparison, save):
     plt.rcParams["axes.axisbelow"] = False
     plt.bar(x = np.linspace(0, df_comparison.shape[0], df_comparison.shape[0]), height=100*df_comparison.delta, tick_label = list(df_comparison.index), alpha=0.50)
     plt.ylabel("Difference between Brightway\nand ES_MOO values [%]")
     plt.grid(visible=False)
     plt.xticks(rotation=90, va="bottom")
     plt.tick_params(axis="x",direction="in", pad=-10)
+    if save:
+        df_name = get_df_name(df=df_comparison)
+        plt.savefig(f"pics/{df_name}.pdf", format="pdf")
     plt.show()
