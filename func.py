@@ -170,7 +170,8 @@ def get_df_name(df):
 
 def plot_comparison(df_comparison, save):
     plt.rcParams["axes.axisbelow"] = False
-    plt.bar(x = np.linspace(0, df_comparison.shape[0], df_comparison.shape[0]), height=100*df_comparison.delta, tick_label = list(df_comparison.index), alpha=0.50)
+    plt.bar(x = np.linspace(0, df_comparison.shape[0], df_comparison.shape[0]),
+            height=100*df_comparison.delta, tick_label = list(df_comparison.index), alpha=0.50)
     plt.ylabel("Difference between Brightway\nand ES_MOO values [%]")
     plt.grid(visible=False)
     plt.xticks(rotation=90, va="bottom")
