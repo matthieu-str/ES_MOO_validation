@@ -36,7 +36,7 @@ def impact_categories(R_constr, R_use):
     return midpoint_categories, endpoint_categories_HH, endpoint_categories_EQ
 
 def impact_computation(tech, impact, conversion_factor, capacity_factor, use_value, indicator, format,
-                       R_constr, R_use):
+                       R_constr, R_use, no_use_phase):
     '''
     Compute the impact of a technology for a given impact category.
     :param tech: name of the technology
@@ -50,6 +50,7 @@ def impact_computation(tech, impact, conversion_factor, capacity_factor, use_val
     :param R_use_mid: R matrix for use activities for midpoints only
     :param R_constr_end: R matrix for construction activities for endpoints only
     :param R_use_end: R matrix for use activities for endpoints only
+    :param no_use_phase: boolean variable, True if the process has no impact during use phase (e.g., PV)
     :return: either a text or the float of the impact computation
     '''
 
@@ -88,7 +89,10 @@ def impact_computation(tech, impact, conversion_factor, capacity_factor, use_val
     constr = float(df_constr[(df_constr.ES_name == tech) & (df_constr["Impact category"] == impact)].value * capacity_factor)
 
     # Use
-    use = float(df_use[(df_use.ES_name == tech) & (df_use["Impact category"] == impact)].value / conversion_factor) * use_value
+    if no_use_phase:
+        use = 0
+    else:
+        use = float(df_use[(df_use.ES_name == tech) & (df_use["Impact category"] == impact)].value / conversion_factor) * use_value
 
     # Total
     if format == "clean":
@@ -98,7 +102,7 @@ def impact_computation(tech, impact, conversion_factor, capacity_factor, use_val
         return use + constr
 
 def comparison(tech, conversion_factor, capacity_factor, use_value, indicator, df_bw_mid, df_bw_end,
-               R_constr, R_use):
+               R_constr, R_use, no_use_phase):
 
     '''
 
@@ -109,6 +113,7 @@ def comparison(tech, conversion_factor, capacity_factor, use_value, indicator, d
     :param indicator: str, "midpoint", "endpoint" or "aop"
     :param df_bw_mid: dataframe of brightway results for midpoints
     :param df_bw_end: dataframe of brightway results for midpoints
+    :param no_use_phase: boolean variable, True if the process has no impact during use phase (e.g., PV)
     :return: dataframe containing brightway results, ecos_sep_use_constr results and the delta between them
     '''
 
@@ -134,7 +139,7 @@ def comparison(tech, conversion_factor, capacity_factor, use_value, indicator, d
         for impact in endpoint_categories_HH:
             HH_brightway+=df_bw_end[f"{method_endpoint_HH}{impact}"].iloc[0]
 
-        EQ_ES_moo, HH_ES_moo = impact_computation(tech=tech, impact=None, conversion_factor=conversion_factor, capacity_factor=capacity_factor, use_value=use_value, indicator=indicator, format="number", R_constr=R_constr, R_use=R_use)
+        EQ_ES_moo, HH_ES_moo = impact_computation(tech=tech, impact=None, conversion_factor=conversion_factor, capacity_factor=capacity_factor, use_value=use_value, indicator=indicator, format="number", R_constr=R_constr, R_use=R_use, no_use_phase=no_use_phase)
 
         res = pd.DataFrame(data = [[HH_ES_moo, EQ_ES_moo], [HH_brightway, EQ_brightway]], index = ["es_moo", "brightway"], columns = ["Human health", "Ecosystem quality"])
 
@@ -142,7 +147,7 @@ def comparison(tech, conversion_factor, capacity_factor, use_value, indicator, d
 
         for impact in midpoint_categories:
             brightway.append(df_bw_mid[f"{method_midpoint}{impact}"].iloc[0])
-            es_moo.append(impact_computation(tech=tech, impact=impact, conversion_factor=conversion_factor, capacity_factor=capacity_factor, use_value=use_value, indicator=indicator, format="number", R_constr=R_constr, R_use=R_use))
+            es_moo.append(impact_computation(tech=tech, impact=impact, conversion_factor=conversion_factor, capacity_factor=capacity_factor, use_value=use_value, indicator=indicator, format="number", R_constr=R_constr, R_use=R_use, no_use_phase=no_use_phase))
 
         res = pd.DataFrame(data = [es_moo, brightway], index = ["es_moo", "brightway"], columns = midpoint_categories)
 
@@ -150,17 +155,17 @@ def comparison(tech, conversion_factor, capacity_factor, use_value, indicator, d
 
         for impact in endpoint_categories_HH:
             brightway.append(df_bw_end[f"{method_endpoint_HH}{impact}"].iloc[0])
-            es_moo.append(impact_computation(tech=tech, impact=impact, conversion_factor=conversion_factor, capacity_factor=capacity_factor, use_value=use_value, indicator=indicator, format="number", R_constr=R_constr, R_use=R_use))
+            es_moo.append(impact_computation(tech=tech, impact=impact, conversion_factor=conversion_factor, capacity_factor=capacity_factor, use_value=use_value, indicator=indicator, format="number", R_constr=R_constr, R_use=R_use, no_use_phase=no_use_phase))
 
         for impact in endpoint_categories_EQ:
             brightway.append(df_bw_end[f"{method_endpoint_EQ}{impact}"].iloc[0])
-            es_moo.append(impact_computation(tech=tech, impact=impact, conversion_factor=conversion_factor, capacity_factor=capacity_factor, use_value=use_value, indicator=indicator, format="number", R_constr=R_constr, R_use=R_use))
+            es_moo.append(impact_computation(tech=tech, impact=impact, conversion_factor=conversion_factor, capacity_factor=capacity_factor, use_value=use_value, indicator=indicator, format="number", R_constr=R_constr, R_use=R_use, no_use_phase=no_use_phase))
 
         res = pd.DataFrame(data = [es_moo, brightway], index = ["es_moo", "brightway"], columns = endpoint_categories_HH + endpoint_categories_EQ)
 
     res = res.T
 
-    res["delta"] = (res.brightway - res.es_moo) / res.brightway
+    res["rel_error"] = (res.es_moo - res.brightway) / res.brightway
 
     return res
 
@@ -171,8 +176,8 @@ def get_df_name(df):
 def plot_comparison(df_comparison, save):
     plt.rcParams["axes.axisbelow"] = False
     plt.bar(x = np.linspace(0, df_comparison.shape[0], df_comparison.shape[0]),
-            height=100*df_comparison.delta, tick_label = list(df_comparison.index), alpha=0.50)
-    plt.ylabel("Difference between Brightway\nand ES_MOO values [%]")
+            height=100*df_comparison.rel_error, tick_label = list(df_comparison.index), alpha=0.50)
+    plt.ylabel("Relative error [%]")
     plt.grid(visible=False)
     plt.xticks(rotation=90, va="bottom")
     plt.tick_params(axis="x",direction="in", pad=-10)
